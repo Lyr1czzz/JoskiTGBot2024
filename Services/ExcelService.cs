@@ -41,9 +41,11 @@ namespace JoskiTGBot2024.Services
                                 string para = worksheet.Cells[nextRow, 2].Text;
 
                                 string next_lesson = worksheet.Cells[nextRow + 1, col].Text;
+                                string next_para = worksheet.Cells[nextRow + 1, 2].Text;
 
                                 if (!string.IsNullOrEmpty(lesson))
-                                {
+                                { 
+                                    // Проверка на отс. первого урока
                                     if ((lesson.Contains("2ч") && para == "1 пара") && (!next_lesson.Contains("1ч") && para == "1 пара"))
                                     {
                                         lessonCount++;  // Урок считается за один
@@ -51,18 +53,35 @@ namespace JoskiTGBot2024.Services
                                         lessonCount++;  // Урок считается за один
                                         groupLessons.Add($"Урок {lessonCount}:\n {lesson}");
                                     }
-                                    
                                     else
                                     {
                                         // Проверяем, есть ли подгруппы (1п или 2п)
-                                        if (lesson.Contains("(1п)") || lesson.Contains("(2п)"))
+                                        if (lesson.Contains("(1п)") && next_lesson.Contains("(2п)") && (para == next_para))
+                                        {
+                                            lessonCount++;
+                                            groupLessons.Add($"Урок {lessonCount}:\n {lesson}");
+                                            groupLessons.Add($"\n {next_lesson}");
+                                            lessonCount++;
+                                            groupLessons.Add($"Урок {lessonCount}:\n {lesson}");
+                                            groupLessons.Add($"\n {next_lesson}");
+
+                                        }
+                                        else if (lesson.Contains("(2п)") && next_lesson.Contains("(1п)") && (para == next_para))
+                                        {
+                                            lessonCount++;
+                                            groupLessons.Add($"Урок {lessonCount}:\n {lesson}");
+                                            groupLessons.Add($"\n {next_lesson}");
+                                            lessonCount++;
+                                            groupLessons.Add($"Урок {lessonCount}:\n {lesson}");
+                                            groupLessons.Add($"\n {next_lesson}");
+
+                                        }
+                                        else if (lesson.Contains("1ч") || lesson.Contains("2ч"))
                                         {
                                             lessonCount++;  // Считается как отдельный урок для подгруппы
                                             groupLessons.Add($"Урок {lessonCount}:\n {lesson}");
 
-                                            // Для второй подгруппы также считаем как отдельный урок
-                                            lessonCount++;
-                                            groupLessons.Add($"Урок {lessonCount}:\n {lesson}");
+
                                         }
                                         else
                                         {
