@@ -12,6 +12,7 @@ using System.Collections.Generic;
 
 // Псевдоним для устранения конфликта имен с Telegram.Bot.Types.User
 using UserModel = JoskiTGBot2024.Models.User;
+using Telegram.Bot.Types.ReplyMarkups;
 
 namespace JoskiTGBot2024
 {
@@ -46,17 +47,53 @@ namespace JoskiTGBot2024
             {
                 var message = update.Message;
 
-                // Обработка команды /start для регистрации пользователя
                 if (message.Text != null && message.Text.StartsWith("/start"))
                 {
-                    string groupName = message.Text.Split(' ').Length > 1 ? message.Text.Split(' ')[1] : null;
-                    if (groupName != null)
+                    var user = _dbContext.Users.FirstOrDefault(u => u.TelegramUserId == message.Chat.Id);
+
+                    if (user == null || string.IsNullOrEmpty(user.GroupName))
                     {
-                        await RegisterUser(message.Chat.Id, groupName);
+                        // Пользователь не выбрал группу, показываем кнопку для выбора группы
+                        await _botClient.SendTextMessageAsync(message.Chat.Id, "Добро пожаловать! Пожалуйста, выберите свою группу.",
+                            replyMarkup: new InlineKeyboardMarkup(
+                                InlineKeyboardButton.WithCallbackData("📚 Выбрать группу", "choose_group")
+                            ));
                     }
                     else
                     {
-                        await _botClient.SendTextMessageAsync(message.Chat.Id, "Пожалуйста, укажите вашу группу после команды /start.");
+                        // Пользователь уже выбрал группу, показываем кнопку для смены группы
+                        await _botClient.SendTextMessageAsync(message.Chat.Id, $"Вы уже выбрали группу: {user.GroupName}.",
+                            replyMarkup: new InlineKeyboardMarkup(
+                                InlineKeyboardButton.WithCallbackData("🔄 Сменить группу", "change_group")
+                            ));
+                    }
+                }
+
+                if (update.CallbackQuery != null)
+                {
+                    var callbackQuery = update.CallbackQuery;
+
+                    if (callbackQuery.Data == "choose_group")
+                    {
+                        await _botClient.SendTextMessageAsync(callbackQuery.Message.Chat.Id, "Введите название вашей группы (например, П-2109):");
+                    }
+                    else if (callbackQuery.Data == "change_group")
+                    {
+                        await _botClient.SendTextMessageAsync(callbackQuery.Message.Chat.Id, "Введите новую группу для смены:");
+                    }
+                }
+
+                // Команда для изменения группы /changegroup
+                else if (message.Text?.StartsWith("/changegroup") == true)
+                {
+                    string newGroupName = message.Text.Split(' ').Length > 1 ? message.Text.Split(' ')[1] : null;
+                    if (newGroupName != null)
+                    {
+                        await ChangeUserGroup(message.Chat.Id, newGroupName);
+                    }
+                    else
+                    {
+                        await _botClient.SendTextMessageAsync(message.Chat.Id, "Пожалуйста, укажите новую группу после команды /changegroup.");
                     }
                 }
 
@@ -108,6 +145,23 @@ namespace JoskiTGBot2024
                 }
             }
         }
+
+        private async Task ChangeUserGroup(long chatId, string newGroupName)
+        {
+            var user = _dbContext.Users.FirstOrDefault(u => u.TelegramUserId == chatId);
+            if (user != null)
+            {
+                user.GroupName = newGroupName;
+                await _dbContext.SaveChangesAsync();
+                await _botClient.SendTextMessageAsync(chatId, $"Ваша группа была успешно изменена на {newGroupName}");
+            }
+            else
+            {
+                await _botClient.SendTextMessageAsync(chatId, "Вы не зарегистрированы. Пожалуйста, используйте команду /start для регистрации.");
+            }
+        }
+
+
 
         // Метод для регистрации пользователя
         private async Task RegisterUser(long chatId, string groupName)
