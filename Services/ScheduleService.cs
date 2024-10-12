@@ -30,44 +30,7 @@ namespace JoskiTGBot2024.Services
                     formattedSchedule.AppendLine();
 
                 }
-                //int lessonNumber = 1;  // Счетчик уроков
-                //bool firstLessonFound = false;  // Флаг для отслеживания первого непустого урока
-
-                //foreach (var lesson in lessons)
-                //{
-                //    // Пропускаем строки с названиями других групп
-                //    if (lesson.Contains("-"))
-                //    {
-                //        continue;
-                //    }
-
-                //    // Проверяем, если урок не пустой
-                //    if (!string.IsNullOrWhiteSpace(lesson))
-                //    {
-                //        // Если это первый найденный непустой урок
-                //        if (!firstLessonFound)
-                //        {
-                //            firstLessonFound = true;
-
-                //            // Устанавливаем правильную начальную нумерацию, начиная с текущего урока
-                //            lessonNumber = lessons.IndexOf(lesson) + 1;
-                //        }
-
-                //        // Добавляем номер урока и смайлик
-                //        formattedSchedule.AppendLine($"📝 *Урок {lessonNumber++}:*");
-
-                //        // Убираем дублирование "Урок X:" в описании урока
-                //        var cleanedLesson = lesson.StartsWith("Урок") ? lesson.Substring(lesson.IndexOf(":") + 1).Trim() : lesson;
-                //        formattedSchedule.AppendLine(cleanedLesson);
-                //        formattedSchedule.AppendLine();  // Переход на новую строку для разделения уроков
-                //    }
-                //    else if (firstLessonFound)
-                //    {
-                //        // Если урок пустой, но уже найден первый урок, увеличиваем счетчик номера урока
-                //        lessonNumber++;
-                //    }
-                //}
-
+                
                 return formattedSchedule.ToString();
             }
             else
