@@ -22,6 +22,7 @@ namespace JoskiTGBot2024.Services
                 var formattedSchedule = new System.Text.StringBuilder();
 
                 formattedSchedule.AppendLine($"📅 *Расписание для группы {groupName}:*");
+
                 formattedSchedule.AppendLine();
                 foreach (var lesson in lessons)
                 {

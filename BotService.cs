@@ -174,6 +174,7 @@ namespace JoskiTGBot2024
                 await _dbContext.SaveChangesAsync();
             }
             Console.WriteLine("новый чел " + chatId);
+
             foreach (var item in _dbContext.Users)
             {
                 Console.WriteLine(item.TelegramUserId + " " + item.IsAdmin);
@@ -218,7 +219,7 @@ namespace JoskiTGBot2024
             foreach (var user in users)
             {
                 var scheduleMessage = scheduleService.GetScheduleForGroup(user.GroupName);
-                await _botClient.SendTextMessageAsync(user.TelegramUserId, scheduleMessage);
+                await _botClient.SendTextMessageAsync(user.TelegramUserId, scheduleMessage, parseMode: Telegram.Bot.Types.Enums.ParseMode.Markdown);
             }
         }
 
