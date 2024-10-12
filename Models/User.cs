@@ -12,5 +12,6 @@ namespace JoskiTGBot2024.Models
         public long TelegramUserId { get; set; }
         public string GroupName { get; set; }
         public bool IsAdmin { get; set; }
+        public string Role { get; set; }
     }
 }

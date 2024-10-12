@@ -18,7 +18,8 @@ namespace JoskiTGBot2024.Migrations
                         .Annotation("Sqlite:Autoincrement", true),
                     TelegramUserId = table.Column<long>(type: "INTEGER", nullable: false),
                     GroupName = table.Column<string>(type: "TEXT", nullable: false),
-                    IsAdmin = table.Column<bool>(type: "INTEGER", nullable: false)
+                    IsAdmin = table.Column<bool>(type: "INTEGER", nullable: false),
+                    Role = table.Column<string>(type: "TEXT", nullable: false)
                 },
                 constraints: table =>
                 {
