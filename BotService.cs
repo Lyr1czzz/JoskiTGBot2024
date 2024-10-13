@@ -3,13 +3,15 @@ using Telegram.Bot.Polling;
 using Telegram.Bot.Types;
 using JoskiTGBot2024.Database;
 using JoskiTGBot2024.Models;
+using JoskiTGBot2024.Services;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Threading;
 using System.Collections.Generic;
 // Псевдоним для устранения конфликта имен с Telegram.Bot.Types.User
-// Псевдоним для устранения конфликта имен с Telegram.Bot.Types.User
 using UserModel = JoskiTGBot2024.Models.User;
+using Telegram.Bot.Types.ReplyMarkups;
 
 namespace JoskiTGBot2024
 {
@@ -17,11 +19,13 @@ namespace JoskiTGBot2024
     {
         private readonly TelegramBotClient _botClient;
         private readonly ApplicationDbContext _dbContext;
+        private readonly ExcelService _excelService;
 
         public BotService(string token)
         {
             _botClient = new TelegramBotClient(token);
             _dbContext = new ApplicationDbContext();
+            _excelService = new ExcelService();
         }
 
         public void Start()
@@ -44,19 +48,20 @@ namespace JoskiTGBot2024
                 var command = message.Text?.Split(' ')[0];
 
                 if (message.Document != null)
+                {
                     if (IsAdmin(message.From.Id))
-                    if (user == null || string.IsNullOrEmpty(user.GroupName))
+                    {
                         await ProcessAdminFile(message.Chat.Id, message.Document.FileId);
                         await _botClient.SendTextMessageAsync(message.Chat.Id, "Расписание было принято на обработку.");
                         return;
                     }
                     else
-                    else
+                    {
                         await _botClient.SendTextMessageAsync(message.Chat.Id, "У вас нет прав для загрузки файлов.");
                         return;
                     }
                 }
-                }
+
                 switch (command)
                 {
                     case "/start":
@@ -78,6 +83,7 @@ namespace JoskiTGBot2024
                         {
                             var user = _dbContext.Users.FirstOrDefault(u => u.TelegramUserId == message.Chat.Id);
                             string newGroupName = message.Text.Split(' ').Length > 1 ? message.Text.Split(' ')[1] : null;
+
 
                             if (user == null || string.IsNullOrEmpty(user.GroupName))
                             {
@@ -103,7 +109,7 @@ namespace JoskiTGBot2024
                             }
                             break;
                         }
-                }
+
                     default:
                         {
                             await _botClient.SendTextMessageAsync(message.Chat.Id, "Я не понял что ты хотел. Попробуй снова");
@@ -168,9 +174,9 @@ namespace JoskiTGBot2024
                     var scheduleMessage = scheduleService.GetScheduleForGroup(user.GroupName);
                     await _botClient.SendTextMessageAsync(user.TelegramUserId, scheduleMessage, parseMode: Telegram.Bot.Types.Enums.ParseMode.Markdown); //Отправка расписания для зарег. пользователоя
                 }
-                await _botClient.SendTextMessageAsync(user.TelegramUserId, scheduleMessage);
             }
         }
+
 
         private Task HandleErrorAsync(ITelegramBotClient botClient, Exception exception, CancellationToken cancellationToken)
         {
