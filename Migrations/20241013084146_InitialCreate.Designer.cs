@@ -10,7 +10,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace JoskiTGBot2024.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20241013075531_InitialCreate")]
+    [Migration("20241013084146_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -31,6 +31,10 @@ namespace JoskiTGBot2024.Migrations
 
                     b.Property<bool>("IsAdmin")
                         .HasColumnType("INTEGER");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
                     b.Property<long>("TelegramUserId")
                         .HasColumnType("INTEGER");

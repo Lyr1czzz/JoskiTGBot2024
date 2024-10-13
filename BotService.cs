@@ -9,10 +9,8 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Threading;
 using System.Collections.Generic;
-// Псевдоним для устранения конфликта имен с Telegram.Bot.Types.User
-using UserModel = JoskiTGBot2024.Models.User;
 using Telegram.Bot.Types.ReplyMarkups;
-
+using UserModel = JoskiTGBot2024.Models.User;
 namespace JoskiTGBot2024
 {
     public class BotService
@@ -45,118 +43,95 @@ namespace JoskiTGBot2024
             if (update.Message != null)
             {
                 var message = update.Message;
+
+                var user = _dbContext.Users.FirstOrDefault(u => u.TelegramUserId == message.Chat.Id);
                 var command = message.Text?.Split(' ')[0];
 
-                if (message.Document != null)
+                if (user == null)
                 {
-                    if (IsAdmin(message.From.Id))
+                    if (command == "/start")
                     {
-                        await ProcessAdminFile(message.Chat.Id, message.Document.FileId);
-                        await _botClient.SendTextMessageAsync(message.Chat.Id, "Расписание было принято на обработку.");
-                        return;
+                        await AskForRole(message.Chat.Id); // Спрашиваем роль
                     }
-                    else
+                    else if (command == "Учащийся" || command == "Преподаватель")
                     {
-                        await _botClient.SendTextMessageAsync(message.Chat.Id, "У вас нет прав для загрузки файлов.");
-                        return;
+                        await RegisterUser(message.Chat.Id, command);
                     }
                 }
-
-                switch (command)
+                else
                 {
-                    case "/start":
-                        {
-                            var user = _dbContext.Users.FirstOrDefault(u => u.TelegramUserId == message.Chat.Id);
-
-                            if (user == null || string.IsNullOrEmpty(user.GroupName))
-                            {
-                                await _botClient.SendTextMessageAsync(message.Chat.Id, "Для выбора группы напишите /group <название>");
-                            }
-                            else
-                            {
-                                await _botClient.SendTextMessageAsync(message.Chat.Id, $"Вы уже выбрали группу: {user.GroupName}. Для смены /group <название>");
-                            }
-                            break;
-                        }
-
-                    case "/group":
-                        {
-                            var user = _dbContext.Users.FirstOrDefault(u => u.TelegramUserId == message.Chat.Id);
-                            string newGroupName = message.Text.Split(' ').Length > 1 ? message.Text.Split(' ')[1] : null;
-
-
-                            if (user == null || string.IsNullOrEmpty(user.GroupName))
-                            {
-                                if (newGroupName != null)
-                                {
-                                    await RegisterUser(message.Chat.Id, newGroupName);
-                                }
-                                else
-                                {
-                                    await _botClient.SendTextMessageAsync(message.Chat.Id, "Укажите новую группу после команды /group <название>");
-                                }
-                            }
-                            else
-                            {
-                                if (newGroupName != null)
-                                {
-                                    await ChangeUserGroup(message.Chat.Id, newGroupName);
-                                }
-                                else
-                                {
-                                    await _botClient.SendTextMessageAsync(message.Chat.Id, "Укажите новую группу после команды /group <название>");
-                                }
-                            }
-                            break;
-                        }
-
-                    default:
-                        {
-                            await _botClient.SendTextMessageAsync(message.Chat.Id, "Я не понял что ты хотел. Попробуй снова");
-                            break;
-                        }
+                    if (command == "/start")
+                    {
+                        await _botClient.SendTextMessageAsync(message.Chat.Id, $"Вы уже зарегистрированы как {user.Role}.");
+                    }
+                    else if (user.Role == "Учащийся" && string.IsNullOrEmpty(user.GroupName))
+                    {
+                        // Запрашиваем у студента группу
+                        await ChangeUserGroup(message.Chat.Id, message.Text);
+                    }
+                    else if (command == "/upload" && IsAdmin(message.From.Id))
+                    {
+                        await _botClient.SendTextMessageAsync(message.Chat.Id, "Пожалуйста, отправьте файл Excel с расписанием.");
+                    }
+                    else if (message.Document != null && IsAdmin(message.From.Id))
+                    {
+                        await ProcessAdminFile(message.Chat.Id, message.Document.FileId);
+                        await _botClient.SendTextMessageAsync(message.Chat.Id, "Расписание принято на обработку.");
+                    }
                 }
             }
         }
 
+        // Метод для запроса роли
+        private async Task AskForRole(long chatId)
+        {
+            var roleButtons = new ReplyKeyboardMarkup(new[]
+            {
+                new KeyboardButton("Учащийся"),
+                new KeyboardButton("Преподаватель")
+            })
+            {
+                ResizeKeyboard = true,
+                OneTimeKeyboard = true // Скрыть клавиатуру после выбора
+            };
+
+            await _botClient.SendTextMessageAsync(chatId, "Пожалуйста, выберите вашу роль:", replyMarkup: roleButtons);
+        }
+
+        // Метод для регистрации пользователя
+        private async Task RegisterUser(long chatId, string role)
+        {
+            var newUser = new UserModel { TelegramUserId = chatId, Role = role, IsAdmin = false };
+            _dbContext.Users.Add(newUser);
+            await _dbContext.SaveChangesAsync();
+
+            if (role == "Учащийся")
+            {
+                await _botClient.SendTextMessageAsync(chatId, "Пожалуйста, введите вашу группу.");
+            }
+            else if (role == "Преподаватель")
+            {
+                await _botClient.SendTextMessageAsync(chatId, "Вы успешно зарегистрированы как преподаватель.");
+            }
+        }
+
+        // Метод для изменения группы пользователя
         private async Task ChangeUserGroup(long chatId, string newGroupName)
         {
             var user = _dbContext.Users.FirstOrDefault(u => u.TelegramUserId == chatId);
-            if (user != null)
+            if (user != null && user.Role == "Учащийся")
             {
                 user.GroupName = newGroupName;
                 await _dbContext.SaveChangesAsync();
-                await _botClient.SendTextMessageAsync(chatId, $"Ваша группа была успешно изменена на {newGroupName}");
+                await _botClient.SendTextMessageAsync(chatId, $"Ваша группа успешно установлена как {newGroupName}.");
             }
             else
             {
-                await _botClient.SendTextMessageAsync(chatId, "Вы не зарегистрированы. Пожалуйста, используйте команду /start для регистрации.");
+                await _botClient.SendTextMessageAsync(chatId, "Произошла ошибка, попробуйте снова.");
             }
         }
 
-        private async Task RegisterUser(long chatId, string groupName)
-        {
-            var user = _dbContext.Users.FirstOrDefault(u => u.TelegramUserId == chatId);
-            if (user == null)
-            {
-                var newUser = new UserModel { TelegramUserId = chatId, GroupName = groupName, IsAdmin = false };
-                _dbContext.Users.Add(newUser);
-                await _dbContext.SaveChangesAsync();
-            }
-            Console.WriteLine("новый чел " + chatId);
-            foreach (var item in _dbContext.Users)
-            {
-                Console.WriteLine(item.TelegramUserId + " " + item.IsAdmin);
-            }
-            await _botClient.SendTextMessageAsync(chatId, $"Вы зарегистрированы в группе {groupName}");
-        }
-
-        private bool IsAdmin(long userId)
-        {
-            var user = _dbContext.Users.FirstOrDefault(u => u.TelegramUserId == userId);
-            return user != null && user.IsAdmin;
-        }
-
+        // Метод для обработки загрузки файлов от администраторов
         private async Task ProcessAdminFile(long adminId, string fileId)
         {
             var file = await _botClient.GetFileAsync(fileId);
@@ -169,14 +144,19 @@ namespace JoskiTGBot2024
             var users = _dbContext.Users.ToList();
             foreach (var user in users)
             {
-                if (user.IsAdmin == false)
+                if (!user.IsAdmin)
                 {
                     var scheduleMessage = scheduleService.GetScheduleForGroup(user.GroupName);
-                    await _botClient.SendTextMessageAsync(user.TelegramUserId, scheduleMessage, parseMode: Telegram.Bot.Types.Enums.ParseMode.Markdown); //Отправка расписания для зарег. пользователоя
+                    await _botClient.SendTextMessageAsync(user.TelegramUserId, scheduleMessage, parseMode: Telegram.Bot.Types.Enums.ParseMode.Markdown);
                 }
             }
         }
 
+        private bool IsAdmin(long userId)
+        {
+            var user = _dbContext.Users.FirstOrDefault(u => u.TelegramUserId == userId);
+            return user != null && user.IsAdmin;
+        }
 
         private Task HandleErrorAsync(ITelegramBotClient botClient, Exception exception, CancellationToken cancellationToken)
         {
