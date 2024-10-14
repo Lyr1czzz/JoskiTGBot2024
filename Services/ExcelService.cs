@@ -28,16 +28,27 @@ namespace JoskiTGBot2024.Services
                         string date = worksheet.Cells[1, 2].Text;
 
                         // Проверяем, является ли ячейка названием группы
-                        if (!string.IsNullOrEmpty(cellValue) && cellValue.Contains("-2"))
+                        if (!string.IsNullOrEmpty(cellValue) && (cellValue.Contains("-2") || Regex.IsMatch(cellValue, @"^[А-ЯЁ][а-яё]+ [А-ЯЁ]\.[А-ЯЁ]\.$")))
                         {
                             string groupName = cellValue;
-                            string groupNameForTG = cellValue + " на " + date;
                             var groupLessons = new List<string>();
 
                             int lessonCount = 0;  // Считаем уроки
 
+                            int nextTeach = 0;
+                            for (int nextRow = row + 1; nextRow <= row + 8 && nextRow <= rows; nextRow++)  // Читаем 14 строк (по два урока на строку, если нет 1ч или 2ч)
+                            {
+                                string tmp = worksheet.Cells[nextRow, col].Text;
+
+                                if (!Regex.IsMatch(tmp, @"^[А-Я]{1,2}-\d{4}$") && !Regex.IsMatch(tmp, @"^[А-ЯЁ][а-яё]+ [А-ЯЁ]\.[А-ЯЁ]\.$"))
+                                {
+                                    nextTeach++;
+                                }
+                                else break;
+                            }
+
                             // Читаем следующие строки с уроками
-                            for (int nextRow = row + 1; nextRow <= row + 7 && nextRow <= rows; nextRow++)  // Читаем 14 строк (по два урока на строку, если нет 1ч или 2ч)
+                            for (int nextRow = row + 1; nextRow <= row + nextTeach && nextRow <= rows; nextRow++)  // Читаем 14 строк (по два урока на строку, если нет 1ч или 2ч)
                             {
                                 string lesson = worksheet.Cells[nextRow, col].Text;
                                 string para = worksheet.Cells[nextRow, 2].Text;
@@ -55,6 +66,7 @@ namespace JoskiTGBot2024.Services
                                         if (splited_lesson[0].Contains("2ч"))
                                         {
                                             lessonCount++;
+                                            groupLessons.Add($"Урок {lessonCount}:\n окошко");
                                             lessonCount++;
                                             groupLessons.Add($"Урок {lessonCount}:\n{splited_lesson[0]}");
                                         }
@@ -62,6 +74,8 @@ namespace JoskiTGBot2024.Services
                                         {
                                             lessonCount++;
                                             groupLessons.Add($"Урок {lessonCount}:\n{splited_lesson[0]}");
+                                            lessonCount++;
+                                            groupLessons.Add($"Урок {lessonCount}:\n окошко");
                                         }
                                         else
                                         {

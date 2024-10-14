@@ -11,6 +11,7 @@ using System.Threading;
 using System.Collections.Generic;
 using Telegram.Bot.Types.ReplyMarkups;
 using UserModel = JoskiTGBot2024.Models.User;
+
 namespace JoskiTGBot2024
 {
     public class BotService
@@ -18,6 +19,7 @@ namespace JoskiTGBot2024
         private readonly TelegramBotClient _botClient;
         private readonly ApplicationDbContext _dbContext;
         private readonly ExcelService _excelService;
+        public bool fileRole;
 
         public BotService(string token)
         {
@@ -62,21 +64,46 @@ namespace JoskiTGBot2024
                 {
                     if (command == "/start")
                     {
-                        await _botClient.SendTextMessageAsync(message.Chat.Id, $"Вы уже зарегистрированы как {user.Role}.");
+                        if (user.IsAdmin)
+                        {
+                            await _botClient.SendTextMessageAsync(message.Chat.Id, $"Вы зарегистрированы как администратор.");
+                            await ShowAdminMenu(message.Chat.Id);
+                        }
+                        else
+                        {
+                            await _botClient.SendTextMessageAsync(message.Chat.Id, $"Вы зарегистрированы как {user.Role}.");
+                        }
                     }
                     else if (user.Role == "Учащийся" && string.IsNullOrEmpty(user.GroupName))
                     {
-                        // Запрашиваем у студента группу
                         await ChangeUserGroup(message.Chat.Id, message.Text);
                     }
-                    else if (command == "/upload" && IsAdmin(message.From.Id))
+                    else if (user.Role == "Преподаватель" && string.IsNullOrEmpty(user.GroupName))
                     {
-                        await _botClient.SendTextMessageAsync(message.Chat.Id, "Пожалуйста, отправьте файл Excel с расписанием.");
+                        await ChangeUserGroup(message.Chat.Id, message.Text);
+                    }
+                    else if (message.Text == "📚 Отправить расписание для студентов" && IsAdmin(message.From.Id))
+                    {
+                        await _botClient.SendTextMessageAsync(message.Chat.Id, "Пожалуйста, отправьте файл Excel с расписанием для студентов.");
+                        fileRole = false;
+                    }
+                    else if (message.Text == "👨‍🏫 Отправить расписание для преподавателей" && IsAdmin(message.From.Id))
+                    {
+                        await _botClient.SendTextMessageAsync(message.Chat.Id, "Пожалуйста, отправьте файл Excel с расписанием для преподавателей.");
+                        fileRole = true;
                     }
                     else if (message.Document != null && IsAdmin(message.From.Id))
                     {
-                        await ProcessAdminFile(message.Chat.Id, message.Document.FileId);
-                        await _botClient.SendTextMessageAsync(message.Chat.Id, "Расписание принято на обработку.");
+                        try
+                        {
+                            await ProcessAdminFile(message.Chat.Id, message.Document.FileId);
+                            string successMessage = fileRole ? "преподавателей" : "учащихся";
+                            await _botClient.SendTextMessageAsync(message.Chat.Id, $"Расписание для {successMessage} принято на обработку.");
+                        }
+                        catch (Exception ex)
+                        {
+                            await _botClient.SendTextMessageAsync(message.Chat.Id, $"Произошла ошибка при обработке файла: {ex.Message}. Пожалуйста, проверьте формат файла.");
+                        }
                     }
                 }
             }
@@ -111,7 +138,7 @@ namespace JoskiTGBot2024
             }
             else if (role == "Преподаватель")
             {
-                await _botClient.SendTextMessageAsync(chatId, "Вы успешно зарегистрированы как преподаватель.");
+                await _botClient.SendTextMessageAsync(chatId, "Пожалуйста, введите вашу группу.");
             }
         }
 
@@ -119,7 +146,7 @@ namespace JoskiTGBot2024
         private async Task ChangeUserGroup(long chatId, string newGroupName)
         {
             var user = _dbContext.Users.FirstOrDefault(u => u.TelegramUserId == chatId);
-            if (user != null && user.Role == "Учащийся")
+            if (user != null)
             {
                 user.GroupName = newGroupName;
                 await _dbContext.SaveChangesAsync();
@@ -141,15 +168,41 @@ namespace JoskiTGBot2024
             var schedule = _excelService.ProcessExcelFile(fileStream);
             var scheduleService = new ScheduleService(schedule);
 
-            var users = _dbContext.Users.ToList();
-            foreach (var user in users)
+            if (fileRole)
             {
-                if (!user.IsAdmin)
+                var teachers = _dbContext.Users.Where(u => u.Role == "Преподаватель").ToList();
+
+                foreach (var user in teachers)
                 {
                     var scheduleMessage = scheduleService.GetScheduleForGroup(user.GroupName);
                     await _botClient.SendTextMessageAsync(user.TelegramUserId, scheduleMessage, parseMode: Telegram.Bot.Types.Enums.ParseMode.Markdown);
                 }
             }
+            else
+            {
+                var students = _dbContext.Users.Where(u => u.Role == "Учащийся").ToList();
+
+                foreach (var user in students)
+                {
+                    var scheduleMessage = scheduleService.GetScheduleForGroup(user.GroupName);
+                    await _botClient.SendTextMessageAsync(user.TelegramUserId, scheduleMessage, parseMode: Telegram.Bot.Types.Enums.ParseMode.Markdown);
+                }
+            }
+        }
+
+        // Метод для отображения меню администратора
+        private async Task ShowAdminMenu(long chatId)
+        {
+            var adminButtons = new ReplyKeyboardMarkup(new[]
+            {
+                new KeyboardButton("📚 Отправить расписание для студентов"),
+                new KeyboardButton("👨‍🏫 Отправить расписание для преподавателей")
+            })
+            {
+                ResizeKeyboard = true
+            };
+
+            await _botClient.SendTextMessageAsync(chatId, "Выберите действие:", replyMarkup: adminButtons);
         }
 
         private bool IsAdmin(long userId)
