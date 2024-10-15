@@ -216,7 +216,7 @@ namespace JoskiTGBot2024
             {
                 user.GroupName = newGroupName;
                 await _dbContext.SaveChangesAsync();
-                await _botClient.SendTextMessageAsync(chatId, $"Измененно на {newGroupName}.");
+                await _botClient.SendTextMessageAsync(chatId, $"Изменено на {newGroupName}.");
             }
             else
             {
