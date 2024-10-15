@@ -26,9 +26,16 @@ namespace JoskiTGBot2024.Services
                 formattedSchedule.AppendLine();
                 foreach (var lesson in lessons)
                 {
-                    formattedSchedule.AppendLine(lesson);
-                    formattedSchedule.AppendLine();
+                    if(lesson.Contains("Физич. культ. и здор. Алешко Н.Г. (600-01)"))
+                    {
+                        formattedSchedule.AppendLine(lesson + "💩💩💩(окошко)");
+                    }
+                    else
+                    {
+                        formattedSchedule.AppendLine(lesson);
 
+                    }
+                    formattedSchedule.AppendLine();
                 }
 
                 return formattedSchedule.ToString();
