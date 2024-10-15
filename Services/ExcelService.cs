@@ -27,6 +27,7 @@ namespace JoskiTGBot2024.Services
                         string cellValue = worksheet.Cells[row, col].Text;
                         string date = worksheet.Cells[1, 2].Text;
 
+
                         // Проверяем, является ли ячейка названием группы
                         if (!string.IsNullOrEmpty(cellValue) && (cellValue.Contains("-2") || Regex.IsMatch(cellValue, @"^[А-ЯЁ][а-яё]+ [А-ЯЁ]\.[А-ЯЁ]\.$")))
                         {
@@ -46,15 +47,18 @@ namespace JoskiTGBot2024.Services
                                 }
                                 else break;
                             }
-
+                            string data = worksheet.Cells[2, 1].Text;
+                            groupLessons.Add(data);
                             // Читаем следующие строки с уроками
                             for (int nextRow = row + 1; nextRow <= row + nextTeach && nextRow <= rows; nextRow++)  // Читаем 14 строк (по два урока на строку, если нет 1ч или 2ч)
                             {
                                 string lesson = worksheet.Cells[nextRow, col].Text;
-                                string para = worksheet.Cells[nextRow, 2].Text;
+                                
 
                                 if (!string.IsNullOrEmpty(lesson)) // Проверяем если нет уроков в ячейке
                                 {
+                                    
+
                                     var splited_lesson = lesson.Split('\n');
                                     var length = splited_lesson.Length;
                                     foreach (var item in splited_lesson)
