@@ -11,6 +11,7 @@ using System.Threading;
 using System.Collections.Generic;
 using Telegram.Bot.Types.ReplyMarkups;
 using UserModel = JoskiTGBot2024.Models.User;
+using System.Text.RegularExpressions;
 
 namespace JoskiTGBot2024
 {
@@ -20,6 +21,7 @@ namespace JoskiTGBot2024
         private readonly ApplicationDbContext _dbContext;
         private readonly ExcelService _excelService;
         public bool fileRole;
+        string changeGroupID = "";
 
         public BotService(string token)
         {
@@ -36,7 +38,7 @@ namespace JoskiTGBot2024
             };
 
             _botClient.StartReceiving(HandleUpdateAsync, HandleErrorAsync, receiverOptions);
-            Console.WriteLine("Бот запущен. Нажмите Enter для завершения.");
+            Console.WriteLine("Бот попущен. Нажмите Enter для завершения.");
             Console.ReadLine();
         }
 
@@ -45,26 +47,18 @@ namespace JoskiTGBot2024
             if (update.Message != null)
             {
                 var message = update.Message;
-
                 var user = _dbContext.Users.FirstOrDefault(u => u.TelegramUserId == message.Chat.Id);
-                var command = message.Text?.Split(' ')[0];
+                var command = message.Text;
+                bool answer = true;
 
-                if (user == null)
+                switch (command)
                 {
-                    if (command == "/start")
-                    {
-                        await AskForRole(message.Chat.Id); // Спрашиваем роль
-                    }
-                    else if (command == "Учащийся" || command == "Преподаватель")
-                    {
-                        await RegisterUser(message.Chat.Id, command);
-                    }
-                }
-                else
-                {
-                    if (command == "/start")
-                    {
-                        if (user.IsAdmin)
+                    case "/start":
+                        if (user == null)
+                        {
+                            await AskForRole(message.Chat.Id); // Спрашиваем роль
+                        }
+                        else if (user.IsAdmin)
                         {
                             await _botClient.SendTextMessageAsync(message.Chat.Id, $"Вы зарегистрированы как администратор.");
                             await ShowAdminMenu(message.Chat.Id);
@@ -73,26 +67,67 @@ namespace JoskiTGBot2024
                         {
                             await _botClient.SendTextMessageAsync(message.Chat.Id, $"Вы зарегистрированы как {user.Role}.");
                         }
-                    }
-                    else if (user.Role == "Учащийся" && string.IsNullOrEmpty(user.GroupName))
-                    {
-                        await ChangeUserGroup(message.Chat.Id, message.Text);
-                    }
-                    else if (user.Role == "Преподаватель" && string.IsNullOrEmpty(user.GroupName))
-                    {
-                        await ChangeUserGroup(message.Chat.Id, message.Text);
-                    }
-                    else if (message.Text == "📚 Отправить расписание для студентов" && IsAdmin(message.From.Id))
-                    {
-                        await _botClient.SendTextMessageAsync(message.Chat.Id, "Пожалуйста, отправьте файл Excel с расписанием для студентов.");
-                        fileRole = false;
-                    }
-                    else if (message.Text == "👨‍🏫 Отправить расписание для преподавателей" && IsAdmin(message.From.Id))
-                    {
-                        await _botClient.SendTextMessageAsync(message.Chat.Id, "Пожалуйста, отправьте файл Excel с расписанием для преподавателей.");
-                        fileRole = true;
-                    }
-                    else if (message.Document != null && IsAdmin(message.From.Id))
+                        break;
+                    case "Учащийся":
+                        if (user == null)
+                        {
+                            await RegisterUser(message.Chat.Id, command);
+                        }
+                        else
+                        {
+                            await _botClient.SendTextMessageAsync(message.Chat.Id, $"Вы не можете выбрать роль сейчас");
+                        }
+                        break;
+                    case "Преподаватель":
+                        if (user == null)
+                        {
+                            await _botClient.SendTextMessageAsync(message.Chat.Id, $"Введите пароль.");
+                        }
+                        break;
+                    case "Joski_Aa1111!":
+                        if (user == null && user.Role != "Учащийся") { 
+                            await RegisterUser(message.Chat.Id, "Преподаватель");
+                        }
+                        break;
+                    case "📚 Отправить расписание для студентов":
+                        if (IsAdmin(message.From.Id))
+                        {
+                            await _botClient.SendTextMessageAsync(message.Chat.Id, "Пожалуйста, отправьте файл Excel с расписанием для студентов.");
+                            fileRole = false; //мы получим расписание студентов
+                        }
+                        else
+                        {
+                            await _botClient.SendTextMessageAsync(message.Chat.Id, "Для этого действия нужно обладать правами администратора.");
+                        }
+                        break;
+                    case "👨‍🏫 Отправить расписание для преподавателей":
+                        if (IsAdmin(message.From.Id))
+                        {
+                            await _botClient.SendTextMessageAsync(message.Chat.Id, "Пожалуйста, отправьте файл Excel с расписанием для преподавателей.");
+                            fileRole = true; //мы получим расписание преподов
+                        }
+                        else
+                        {
+                            await _botClient.SendTextMessageAsync(message.Chat.Id, "Для этого действия нужно обладать правами администратора.");
+                        }
+                        break;
+
+                    case "Жоско сменить группу":
+                        if (user.Role == "Учащийся")
+                        {
+                            changeGroupID = message.Chat.Id.ToString();
+                            await _botClient.SendTextMessageAsync(message.Chat.Id, $"Введите новую группу");
+                            
+                        }
+                        break;
+                    default:
+                        answer = false;
+                        break;
+                }
+
+                if (user != null)
+                {
+                    if (message.Document != null && IsAdmin(message.From.Id))
                     {
                         try
                         {
@@ -104,6 +139,31 @@ namespace JoskiTGBot2024
                         {
                             await _botClient.SendTextMessageAsync(message.Chat.Id, $"Произошла ошибка при обработке файла: {ex.Message}. Пожалуйста, проверьте формат файла.");
                         }
+                        answer = true;
+                    }
+
+                    if (command != null && Regex.IsMatch(command, @"^[А-ЯЁ][а-яё]+ [А-ЯЁ]\.[А-ЯЁ]\.$"))
+                    {
+                        if (user.Role == "Преподаватель")
+                        {
+                            await ChangeUserGroup(message.Chat.Id, command); //выбор фамилии препода
+                        }
+                        else
+                        {
+                            await _botClient.SendTextMessageAsync(message.Chat.Id, $"Вы не можете поменять ФИО сейчас");
+                        }
+                        answer = true;
+                    }
+
+                    if (command != null && Regex.IsMatch(command, @"^[А-ЯЁ]{1,2}-\d{4}$") && (string.IsNullOrEmpty(user.GroupName) || message.Chat.Id.ToString() == changeGroupID))
+                    {
+                        await ChangeUserGroup(message.Chat.Id, command); //выбор группы студента
+                        answer = true;
+                    }
+
+                    if (!answer)
+                    {
+                        await _botClient.SendTextMessageAsync(message.Chat.Id, "Вы написали какую-то бяку. Попробуйте что-то другое.");
                     }
                 }
             }
@@ -134,11 +194,17 @@ namespace JoskiTGBot2024
 
             if (role == "Учащийся")
             {
-                await _botClient.SendTextMessageAsync(chatId, "Пожалуйста, введите вашу группу.");
+                await _botClient.SendTextMessageAsync(chatId, "Пожалуйста, введите вашу группу. ");
+                await _botClient.SendTextMessageAsync(chatId, $"Внимание! вы НЕ сможете сменить группу после ее выбора. Пожалуйста, постарайтесь вспомнить ТОЧНОЕ название своей группы. Форма записи: БД-2016.");
+
             }
             else if (role == "Преподаватель")
             {
-                await _botClient.SendTextMessageAsync(chatId, "Пожалуйста, введите вашу группу.");
+                await _botClient.SendTextMessageAsync(chatId, "Пожалуйста, введите ваше ФИО в формате Фамилия И.О.");
+            }
+            else
+            {
+                await _botClient.SendTextMessageAsync(chatId, "Произошла ошибка, попробуйте снова.");
             }
         }
 
@@ -150,7 +216,7 @@ namespace JoskiTGBot2024
             {
                 user.GroupName = newGroupName;
                 await _dbContext.SaveChangesAsync();
-                await _botClient.SendTextMessageAsync(chatId, $"Ваша группа успешно установлена как {newGroupName}.");
+                await _botClient.SendTextMessageAsync(chatId, $"Измененно на {newGroupName}.");
             }
             else
             {
@@ -174,8 +240,11 @@ namespace JoskiTGBot2024
 
                 foreach (var user in teachers)
                 {
-                    var scheduleMessage = scheduleService.GetScheduleForGroup(user.GroupName);
-                    await _botClient.SendTextMessageAsync(user.TelegramUserId, scheduleMessage, parseMode: Telegram.Bot.Types.Enums.ParseMode.Markdown);
+                    if (!user.IsAdmin)
+                    {
+                        var scheduleMessage = scheduleService.GetScheduleForGroup(user.GroupName);
+                        await _botClient.SendTextMessageAsync(user.TelegramUserId, scheduleMessage, parseMode: Telegram.Bot.Types.Enums.ParseMode.Markdown);
+                    }
                 }
             }
             else
@@ -184,8 +253,11 @@ namespace JoskiTGBot2024
 
                 foreach (var user in students)
                 {
-                    var scheduleMessage = scheduleService.GetScheduleForGroup(user.GroupName);
-                    await _botClient.SendTextMessageAsync(user.TelegramUserId, scheduleMessage, parseMode: Telegram.Bot.Types.Enums.ParseMode.Markdown);
+                    if (!user.IsAdmin)
+                    {
+                        var scheduleMessage = scheduleService.GetScheduleForGroup(user.GroupName);
+                        await _botClient.SendTextMessageAsync(user.TelegramUserId, scheduleMessage, parseMode: Telegram.Bot.Types.Enums.ParseMode.Markdown);
+                    }
                 }
             }
         }
