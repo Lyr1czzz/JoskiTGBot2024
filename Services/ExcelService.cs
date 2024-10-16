@@ -2,6 +2,7 @@
 using System.IO;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
+using static Microsoft.EntityFrameworkCore.DbLoggerCategory.Database;
 
 namespace JoskiTGBot2024.Services
 {
@@ -29,7 +30,7 @@ namespace JoskiTGBot2024.Services
 
 
                         // Проверяем, является ли ячейка названием группы
-                        if (!string.IsNullOrEmpty(cellValue) && (cellValue.Contains("-2") || Regex.IsMatch(cellValue, @"^[А-ЯЁ][а-яё]+ [А-ЯЁ]\.[А-ЯЁ]\.$")))
+                        if (!string.IsNullOrEmpty(cellValue) && (Regex.IsMatch(cellValue, @"^[А-ЯЁ]{1,2}-\d{4}$") || Regex.IsMatch(cellValue, @"^[А-ЯЁ][а-яё]+ [А-ЯЁ]\.[А-ЯЁ]\.$")))
                         {
                             string groupName = cellValue;
                             var groupLessons = new List<string>();
@@ -57,14 +58,24 @@ namespace JoskiTGBot2024.Services
 
                                 if (!string.IsNullOrEmpty(lesson)) // Проверяем если нет уроков в ячейке
                                 {
-                                    
-
+                                   
                                     var splited_lesson = lesson.Split('\n');
                                     var length = splited_lesson.Length;
+
                                     foreach (var item in splited_lesson)
                                     {
                                         item.Trim();
                                     }
+
+                                    //if (splited_lesson[0].Contains("Физич. культ. и здор. Алешко Н.Г. (600-01)"))
+                                    //{
+                                    //    splited_lesson[0] += "💩💩💩(окошко)";
+                                    //}
+                                    //else if (splited_lesson[1].Contains("Физич. культ. и здор. Алешко Н.Г. (600-01)"))
+                                    //{
+                                    //    splited_lesson[1] += "💩💩💩(окошко)";
+                                    //}
+
                                     if (length == 1)
                                     {
                                         if (splited_lesson[0].Contains("2ч"))
@@ -91,93 +102,130 @@ namespace JoskiTGBot2024.Services
                                     }
                                     else if (length == 2)
                                     {
-                                        if (!splited_lesson[0].Contains("1ч") && !splited_lesson[0].Contains("2ч"))
+                                        if (splited_lesson[0].Contains("1ч") && splited_lesson[1].Contains("2ч"))
                                         {
                                             lessonCount++;
-                                            groupLessons.Add($"Урок {lessonCount}:\n{string.Join('\n', splited_lesson)}");
+                                            groupLessons.Add($"Урок {lessonCount}:\n{splited_lesson[0]}");
                                             lessonCount++;
-                                            groupLessons.Add($"Урок {lessonCount}:\n{string.Join('\n', splited_lesson)}");
+                                            groupLessons.Add($"Урок {lessonCount}:\n{splited_lesson[1]}");
+                                        }
+                                        else if (splited_lesson[0].Contains("2ч") && splited_lesson[1].Contains("1ч"))
+                                        {
+                                            lessonCount++;
+                                            groupLessons.Add($"Урок {lessonCount}:\n{splited_lesson[1]}");
+                                            lessonCount++;
+                                            groupLessons.Add($"Урок {lessonCount}:\n{splited_lesson[0]}");
                                         }
                                         else if (splited_lesson[0].Contains("1ч") && splited_lesson[1].Contains("1ч"))
                                         {
                                             lessonCount++;
-                                            groupLessons.Add($"Урок {lessonCount}:\n{string.Join('\n', splited_lesson)}");
+                                            groupLessons.Add($"Урок {lessonCount}:\n{splited_lesson[0] + '\n' + splited_lesson[1]}");
+                                            lessonCount++;
+                                            groupLessons.Add($"Урок {lessonCount}:\n окошко");
                                         }
-                                        else if (splited_lesson[0].Contains("1ч"))
+                                        else if (splited_lesson[0].Contains("2ч") && splited_lesson[1].Contains("2ч"))
                                         {
                                             lessonCount++;
-                                            groupLessons.Add($"Урок {lessonCount}:\n{splited_lesson[0]}");
+                                            groupLessons.Add($"Урок {lessonCount}:\n окошко");
                                             lessonCount++;
-                                            groupLessons.Add($"Урок {lessonCount}:\n{splited_lesson[1]}");
+                                            groupLessons.Add($"Урок {lessonCount}:\n{splited_lesson[0] + '\n' + splited_lesson[1]}");
                                         }
-                                        else if (splited_lesson[0].Contains("2ч"))
+                                        else
                                         {
                                             lessonCount++;
-                                            groupLessons.Add($"Урок {lessonCount}:\n{splited_lesson[1]}");
+                                            groupLessons.Add($"Урок {lessonCount}:\n{splited_lesson[0] + '\n' + splited_lesson[1]}");
                                             lessonCount++;
-                                            groupLessons.Add($"Урок {lessonCount}:\n{splited_lesson[0]}");
+                                            groupLessons.Add($"Урок {lessonCount}:\n{splited_lesson[0] + '\n' + splited_lesson[1]}");
                                         }
                                     }
                                     else if (length == 3)
                                     {
-                                        if (splited_lesson[0].Contains("1ч") && splited_lesson[1].Contains("1ч"))
+                                        if (splited_lesson[0].Contains("1ч") && splited_lesson[1].Contains("1ч") && splited_lesson[2].Contains("2ч"))
                                         {
                                             lessonCount++;
                                             groupLessons.Add($"Урок {lessonCount}:\n{splited_lesson[0] + '\n' + splited_lesson[1]}");
                                             lessonCount++;
                                             groupLessons.Add($"Урок {lessonCount}:\n{splited_lesson[2]}");
                                         }
-                                        else if (splited_lesson[0].Contains("1ч") && splited_lesson[1].Contains("2ч"))
+                                        else if (splited_lesson[0].Contains("2ч") && splited_lesson[1].Contains("2ч") && splited_lesson[2].Contains("1ч"))
+                                        {
+                                            lessonCount++;
+                                            groupLessons.Add($"Урок {lessonCount}:\n{splited_lesson[2]}");
+                                            lessonCount++;
+                                            groupLessons.Add($"Урок {lessonCount}:\n{splited_lesson[0] + '\n' + splited_lesson[1]}");
+                                        }
+                                        else if (splited_lesson[0].Contains("1ч") && splited_lesson[1].Contains("2ч") && splited_lesson[2].Contains("1ч"))
+                                        {
+                                            lessonCount++;
+                                            groupLessons.Add($"Урок {lessonCount}:\n{splited_lesson[0] + '\n' + splited_lesson[2]}");
+                                            lessonCount++;
+                                            groupLessons.Add($"Урок {lessonCount}:\n{splited_lesson[1]}");
+                                        }
+                                        else if (splited_lesson[0].Contains("2ч") && splited_lesson[1].Contains("1ч") && splited_lesson[2].Contains("2ч"))
+                                        {
+                                            lessonCount++;
+                                            groupLessons.Add($"Урок {lessonCount}:\n{splited_lesson[1]}");
+                                            lessonCount++;
+                                            groupLessons.Add($"Урок {lessonCount}:\n{splited_lesson[0] + '\n' + splited_lesson[2]}");
+                                        }
+                                        else if (splited_lesson[0].Contains("1ч") && splited_lesson[1].Contains("2ч") && splited_lesson[2].Contains("2ч"))
                                         {
                                             lessonCount++;
                                             groupLessons.Add($"Урок {lessonCount}:\n{splited_lesson[0]}");
                                             lessonCount++;
                                             groupLessons.Add($"Урок {lessonCount}:\n{splited_lesson[1] + '\n' + splited_lesson[2]}");
                                         }
-                                        else if (splited_lesson[0].Contains("1ч") && splited_lesson[2].Contains("1ч"))
+                                        else if (splited_lesson[0].Contains("2ч") && splited_lesson[1].Contains("1ч") && splited_lesson[2].Contains("1ч"))
                                         {
                                             lessonCount++;
-                                            groupLessons.Add($"Урок {lessonCount}:\n{splited_lesson[0] + '\n' + splited_lesson[2]}");
+                                            groupLessons.Add($"Урок {lessonCount}:\n{splited_lesson[1] + '\n' + splited_lesson[2]}");
                                             lessonCount++;
-                                            groupLessons.Add($"Урок {lessonCount}:\n{splited_lesson[1]}");
-                                        }
-                                        else if (splited_lesson[0].Contains("2ч") && splited_lesson[2].Contains("2ч"))
-                                        {
-                                            lessonCount++;
-                                            groupLessons.Add($"Урок {lessonCount}:\n{splited_lesson[1]}");
-                                            lessonCount++;
-                                            groupLessons.Add($"Урок {lessonCount}:\n{splited_lesson[0] + '\n' + splited_lesson[2]}");
+                                            groupLessons.Add($"Урок {lessonCount}:\n{splited_lesson[0]}");
                                         }
                                     }
                                     else
                                     {
-                                        if (splited_lesson[0].Contains("1ч") && splited_lesson[1].Contains("1ч"))
+                                        if (splited_lesson[0].Contains("1ч") && splited_lesson[1].Contains("1ч") && splited_lesson[2].Contains("2ч") && splited_lesson[3].Contains("2ч"))
                                         {
                                             lessonCount++;
                                             groupLessons.Add($"Урок {lessonCount}:\n{splited_lesson[0] + '\n' + splited_lesson[1]}");
                                             lessonCount++;
                                             groupLessons.Add($"Урок {lessonCount}:\n{splited_lesson[2] + '\n' + splited_lesson[3]}");
                                         }
-                                        if (splited_lesson[0].Contains("2ч") && splited_lesson[1].Contains("2ч"))
+                                        else if (splited_lesson[0].Contains("2ч") && splited_lesson[1].Contains("2ч") && splited_lesson[2].Contains("1ч") && splited_lesson[3].Contains("1ч"))
                                         {
                                             lessonCount++;
                                             groupLessons.Add($"Урок {lessonCount}:\n{splited_lesson[2] + '\n' + splited_lesson[3]}");
                                             lessonCount++;
                                             groupLessons.Add($"Урок {lessonCount}:\n{splited_lesson[0] + '\n' + splited_lesson[1]}");
                                         }
-                                        else if (splited_lesson[0].Contains("1ч") && splited_lesson[2].Contains("1ч"))
+                                        else if (splited_lesson[0].Contains("1ч") && splited_lesson[1].Contains("2ч") && splited_lesson[2].Contains("1ч") && splited_lesson[3].Contains("2ч"))
                                         {
                                             lessonCount++;
                                             groupLessons.Add($"Урок {lessonCount}:\n{splited_lesson[0] + '\n' + splited_lesson[2]}");
                                             lessonCount++;
                                             groupLessons.Add($"Урок {lessonCount}:\n{splited_lesson[1] + '\n' + splited_lesson[3]}");
                                         }
-                                        else if (splited_lesson[0].Contains("2ч") && splited_lesson[2].Contains("2ч"))
+                                        else if (splited_lesson[0].Contains("2ч") && splited_lesson[1].Contains("1ч") && splited_lesson[2].Contains("2ч") && splited_lesson[3].Contains("1ч"))
                                         {
                                             lessonCount++;
                                             groupLessons.Add($"Урок {lessonCount}:\n{splited_lesson[1] + '\n' + splited_lesson[3]}");
                                             lessonCount++;
                                             groupLessons.Add($"Урок {lessonCount}:\n{splited_lesson[0] + '\n' + splited_lesson[2]}");
+                                        }
+                                        else if (splited_lesson[0].Contains("2ч") && splited_lesson[1].Contains("1ч") && splited_lesson[2].Contains("1ч") && splited_lesson[3].Contains("2ч"))
+                                        {
+                                            lessonCount++;
+                                            groupLessons.Add($"Урок {lessonCount}:\n{splited_lesson[1] + '\n' + splited_lesson[2]}");
+                                            lessonCount++;
+                                            groupLessons.Add($"Урок {lessonCount}:\n{splited_lesson[0] + '\n' + splited_lesson[3]}");
+                                        }
+                                        else if (splited_lesson[0].Contains("1ч") && splited_lesson[1].Contains("2ч") && splited_lesson[2].Contains("2ч") && splited_lesson[3].Contains("1ч"))
+                                        {
+                                            lessonCount++;
+                                            groupLessons.Add($"Урок {lessonCount}:\n{splited_lesson[0] + '\n' + splited_lesson[3]}");
+                                            lessonCount++;
+                                            groupLessons.Add($"Урок {lessonCount}:\n{splited_lesson[1] + '\n' + splited_lesson[2]}");
                                         }
                                     }
                                 }

@@ -20,8 +20,7 @@ namespace JoskiTGBot2024
         private readonly TelegramBotClient _botClient;
         private readonly ApplicationDbContext _dbContext;
         private readonly ExcelService _excelService;
-        public bool fileRole;
-        string changeGroupID = "";
+        bool fileRole;
 
         public BotService(string token)
         {
@@ -38,7 +37,7 @@ namespace JoskiTGBot2024
             };
 
             _botClient.StartReceiving(HandleUpdateAsync, HandleErrorAsync, receiverOptions);
-            Console.WriteLine("Бот попущен. Нажмите Enter для завершения.");
+            Console.WriteLine("Бот запущен. Нажмите Enter для завершения.");
             Console.ReadLine();
         }
 
@@ -49,237 +48,167 @@ namespace JoskiTGBot2024
                 var message = update.Message;
                 var user = _dbContext.Users.FirstOrDefault(u => u.TelegramUserId == message.Chat.Id);
                 var command = message.Text;
-                bool answer = true;
+
+                // Проверка ввода данных для группы или ФИО после смены роли
+                if (user != null && !string.IsNullOrEmpty(user.Role) && string.IsNullOrEmpty(user.GroupName))
+                {
+                    if (user.Role == "Учащийся" && Regex.IsMatch(command, @"^[А-ЯЁ]{1,2}-\d{4}$"))
+                    {
+                        await ChangeUserGroupOrFIO(user.TelegramUserId, command);
+                        await _botClient.SendTextMessageAsync(message.Chat.Id, $"Группа успешно сохранена как {command}.");
+                    }
+                    else if (user.Role == "Преподаватель" && Regex.IsMatch(command, @"^[А-ЯЁ][а-яё]+ [А-ЯЁ]\.[А-ЯЁ]\.$"))
+                    {
+                        await ChangeUserGroupOrFIO(user.TelegramUserId, command);
+                        await _botClient.SendTextMessageAsync(message.Chat.Id, $"ФИО успешно сохранено как {command}.");
+                    }
+                    else
+                    {
+                        await _botClient.SendTextMessageAsync(message.Chat.Id, "Пожалуйста, введите корректные данные.");
+                    }
+                    return;
+                }
 
                 switch (command)
                 {
                     case "/start":
-                        if (user == null)
+                        if (user != null)
                         {
-                            await AskForRole(message.Chat.Id); // Спрашиваем роль
+                            _dbContext.Users.Remove(user);
+                            await _dbContext.SaveChangesAsync();
                         }
-                        else if (user.IsAdmin)
+
+                        await RegisterEmptyUser(message.Chat.Id);
+                        if (IsAdmin(message.From.Id))
                         {
-                            await _botClient.SendTextMessageAsync(message.Chat.Id, $"Вы зарегистрированы как администратор.");
                             await ShowAdminMenu(message.Chat.Id);
                         }
                         else
                         {
-                            await _botClient.SendTextMessageAsync(message.Chat.Id, $"Вы зарегистрированы как {user.Role}.");
-                        }
-                        break;
-                    case "Учащийся":
-                        if (user == null)
-                        {
-                            await RegisterUser(message.Chat.Id, command);
-                        }
-                        else
-                        {
-                            await _botClient.SendTextMessageAsync(message.Chat.Id, $"Вы не можете выбрать роль сейчас");
-                        }
-                        break;
-                    case "Преподаватель":
-                        if (user == null)
-                        {
-                            await _botClient.SendTextMessageAsync(message.Chat.Id, $"Введите пароль.");
-                        }
-                        break;
-                    case "Joski_Aa1111!":
-                        if (user == null && user.Role != "Учащийся") { 
-                            await RegisterUser(message.Chat.Id, "Преподаватель");
-                        }
-                        break;
-                    case "📚 Отправить расписание для студентов":
-                        if (IsAdmin(message.From.Id))
-                        {
-                            await _botClient.SendTextMessageAsync(message.Chat.Id, "Пожалуйста, отправьте файл Excel с расписанием для студентов.");
-                            fileRole = false; //мы получим расписание студентов
-                        }
-                        else
-                        {
-                            await _botClient.SendTextMessageAsync(message.Chat.Id, "Для этого действия нужно обладать правами администратора.");
-                        }
-                        break;
-                    case "👨‍🏫 Отправить расписание для преподавателей":
-                        if (IsAdmin(message.From.Id))
-                        {
-                            await _botClient.SendTextMessageAsync(message.Chat.Id, "Пожалуйста, отправьте файл Excel с расписанием для преподавателей.");
-                            fileRole = true; //мы получим расписание преподов
-                        }
-                        else
-                        {
-                            await _botClient.SendTextMessageAsync(message.Chat.Id, "Для этого действия нужно обладать правами администратора.");
+                            await ShowUserMenu(message.Chat.Id);
                         }
                         break;
 
-                    case "Жоско сменить группу":
-                        if (user.Role == "Учащийся")
-                        {
-                            changeGroupID = message.Chat.Id.ToString();
-                            await _botClient.SendTextMessageAsync(message.Chat.Id, $"Введите новую группу");
-                            
-                        }
-                        break;
                     default:
-                        answer = false;
+                        await _botClient.SendTextMessageAsync(message.Chat.Id, "Неизвестная команда. Пожалуйста, выберите действие из меню.");
                         break;
                 }
+            }
 
-                if (user != null)
+            if (update.CallbackQuery != null)
+            {
+                var callbackQuery = update.CallbackQuery;
+                var user = _dbContext.Users.FirstOrDefault(u => u.TelegramUserId == callbackQuery.Message.Chat.Id);
+
+                switch (callbackQuery.Data)
                 {
-                    if (message.Document != null && IsAdmin(message.From.Id))
-                    {
-                        try
-                        {
-                            await ProcessAdminFile(message.Chat.Id, message.Document.FileId);
-                            string successMessage = fileRole ? "преподавателей" : "учащихся";
-                            await _botClient.SendTextMessageAsync(message.Chat.Id, $"Расписание для {successMessage} принято на обработку.");
-                        }
-                        catch (Exception ex)
-                        {
-                            await _botClient.SendTextMessageAsync(message.Chat.Id, $"Произошла ошибка при обработке файла: {ex.Message}. Пожалуйста, проверьте формат файла.");
-                        }
-                        answer = true;
-                    }
+                    case "change_role":
+                        await AskForRole(callbackQuery.Message.Chat.Id);
+                        break;
 
-                    if (command != null && Regex.IsMatch(command, @"^[А-ЯЁ][а-яё]+ [А-ЯЁ]\.[А-ЯЁ]\.$"))
-                    {
-                        if (user.Role == "Преподаватель")
-                        {
-                            await ChangeUserGroup(message.Chat.Id, command); //выбор фамилии препода
-                        }
-                        else
-                        {
-                            await _botClient.SendTextMessageAsync(message.Chat.Id, $"Вы не можете поменять ФИО сейчас");
-                        }
-                        answer = true;
-                    }
+                    case "role_student":
+                        await ChangeUserRole(callbackQuery.Message.Chat.Id, "Учащийся");
+                        await _botClient.SendTextMessageAsync(callbackQuery.Message.Chat.Id, "Роль 'Учащийся' установлена. Пожалуйста, введите вашу группу.");
+                        break;
 
-                    if (command != null && Regex.IsMatch(command, @"^[А-ЯЁ]{1,2}-\d{4}$") && (string.IsNullOrEmpty(user.GroupName) || message.Chat.Id.ToString() == changeGroupID))
-                    {
-                        await ChangeUserGroup(message.Chat.Id, command); //выбор группы студента
-                        answer = true;
-                    }
+                    case "role_teacher":
+                        await ChangeUserRole(callbackQuery.Message.Chat.Id, "Преподаватель");
+                        await _botClient.SendTextMessageAsync(callbackQuery.Message.Chat.Id, "Роль 'Преподаватель' установлена. Пожалуйста, введите ваше ФИО.");
+                        break;
 
-                    if (!answer)
-                    {
-                        await _botClient.SendTextMessageAsync(message.Chat.Id, "Вы написали какую-то бяку. Попробуйте что-то другое.");
-                    }
+                    case "upload_schedule_students":
+                        await _botClient.SendTextMessageAsync(callbackQuery.Message.Chat.Id, "Пожалуйста, отправьте файл Excel с расписанием для студентов.");
+                        fileRole = false;
+                        break;
+
+                    case "upload_schedule_teachers":
+                        await _botClient.SendTextMessageAsync(callbackQuery.Message.Chat.Id, "Пожалуйста, отправьте файл Excel с расписанием для преподавателей.");
+                        fileRole = true;
+                        break;
+
+                    default:
+                        await _botClient.AnswerCallbackQueryAsync(callbackQuery.Id, "Вы написали какую-то бяку, попробуйте снова.");
+                        break;
                 }
             }
         }
 
-        // Метод для запроса роли
-        private async Task AskForRole(long chatId)
+        // Метод для отображения меню для обычного пользователя
+        private async Task ShowUserMenu(long chatId)
         {
-            var roleButtons = new ReplyKeyboardMarkup(new[]
+            var userMenu = new InlineKeyboardMarkup(new[]
             {
-                new KeyboardButton("Учащийся"),
-                new KeyboardButton("Преподаватель")
-            })
-            {
-                ResizeKeyboard = true,
-                OneTimeKeyboard = true // Скрыть клавиатуру после выбора
-            };
+                new[]
+                {
+                    InlineKeyboardButton.WithCallbackData("Сменить роль", "change_role")
+                }
+            });
 
-            await _botClient.SendTextMessageAsync(chatId, "Пожалуйста, выберите вашу роль:", replyMarkup: roleButtons);
+            await _botClient.SendTextMessageAsync(chatId, "Меню действий:", replyMarkup: userMenu);
         }
 
-        // Метод для регистрации пользователя
-        private async Task RegisterUser(long chatId, string role)
+        // Метод для отображения меню для администратора
+        private async Task ShowAdminMenu(long chatId)
         {
-            var newUser = new UserModel { TelegramUserId = chatId, Role = role, IsAdmin = false };
-            _dbContext.Users.Add(newUser);
-            await _dbContext.SaveChangesAsync();
+            var adminMenu = new InlineKeyboardMarkup(new[]
+            {
+                new[]
+                {
+                    InlineKeyboardButton.WithCallbackData("📚 Отправить расписание для студентов", "upload_schedule_students"),
+                    InlineKeyboardButton.WithCallbackData("👨‍🏫 Отправить расписание для преподавателей", "upload_schedule_teachers")
+                }
+            });
 
-            if (role == "Учащийся")
-            {
-                await _botClient.SendTextMessageAsync(chatId, "Пожалуйста, введите вашу группу. ");
-                await _botClient.SendTextMessageAsync(chatId, $"Внимание! вы НЕ сможете сменить группу после ее выбора. Пожалуйста, постарайтесь вспомнить ТОЧНОЕ название своей группы. Форма записи: БД-2016.");
-
-            }
-            else if (role == "Преподаватель")
-            {
-                await _botClient.SendTextMessageAsync(chatId, "Пожалуйста, введите ваше ФИО в формате Фамилия И.О.");
-            }
-            else
-            {
-                await _botClient.SendTextMessageAsync(chatId, "Произошла ошибка, попробуйте снова.");
-            }
+            await _botClient.SendTextMessageAsync(chatId, "Меню администратора:", replyMarkup: adminMenu);
         }
 
-        // Метод для изменения группы пользователя
-        private async Task ChangeUserGroup(long chatId, string newGroupName)
+        // Метод для запроса изменения группы или ФИО
+        private async Task ChangeUserGroupOrFIO(long chatId, string newValue)
         {
             var user = _dbContext.Users.FirstOrDefault(u => u.TelegramUserId == chatId);
             if (user != null)
             {
-                user.GroupName = newGroupName;
+                user.GroupName = newValue;
                 await _dbContext.SaveChangesAsync();
-                await _botClient.SendTextMessageAsync(chatId, $"Изменено на {newGroupName}.");
-            }
-            else
-            {
-                await _botClient.SendTextMessageAsync(chatId, "Произошла ошибка, попробуйте снова.");
             }
         }
 
-        // Метод для обработки загрузки файлов от администраторов
-        private async Task ProcessAdminFile(long adminId, string fileId)
+        // Метод для запроса выбора роли
+        private async Task AskForRole(long chatId)
         {
-            var file = await _botClient.GetFileAsync(fileId);
-            var fileStream = new MemoryStream();
-            await _botClient.DownloadFileAsync(file.FilePath, fileStream);
-
-            var schedule = _excelService.ProcessExcelFile(fileStream);
-            var scheduleService = new ScheduleService(schedule);
-
-            if (fileRole)
+            var roleButtons = new InlineKeyboardMarkup(new[]
             {
-                var teachers = _dbContext.Users.Where(u => u.Role == "Преподаватель").ToList();
+                InlineKeyboardButton.WithCallbackData("Учащийся", "role_student"),
+                InlineKeyboardButton.WithCallbackData("Преподаватель", "role_teacher")
+            });
 
-                foreach (var user in teachers)
-                {
-                    if (user.GroupName.Contains("Лейко Д.А."))
-                    {
-                        var scheduleMessage = scheduleService.GetScheduleForGroup(user.GroupName);
-                        await _botClient.SendTextMessageAsync(user.TelegramUserId, "Спец заказ для МС микроба газонюха\n" + scheduleMessage, parseMode: Telegram.Bot.Types.Enums.ParseMode.Markdown);
-                    }
-                    else if (!user.IsAdmin)
-                    {
-                        var scheduleMessage = scheduleService.GetScheduleForGroup(user.GroupName);
-                        await _botClient.SendTextMessageAsync(user.TelegramUserId, scheduleMessage, parseMode: Telegram.Bot.Types.Enums.ParseMode.Markdown);
-                    }
-                }
-            }
-            else
+            await _botClient.SendTextMessageAsync(chatId, "Пожалуйста, выберите вашу роль:", replyMarkup: roleButtons);
+        }
+
+        // Метод для смены роли пользователя
+        private async Task ChangeUserRole(long chatId, string role)
+        {
+            var user = _dbContext.Users.FirstOrDefault(u => u.TelegramUserId == chatId);
+            if (user != null)
             {
-                var students = _dbContext.Users.Where(u => u.Role == "Учащийся").ToList();
-
-                foreach (var user in students)
-                {
-                    if (!user.IsAdmin)
-                    {
-                        var scheduleMessage = scheduleService.GetScheduleForGroup(user.GroupName);
-                        await _botClient.SendTextMessageAsync(user.TelegramUserId, scheduleMessage, parseMode: Telegram.Bot.Types.Enums.ParseMode.Markdown);
-                    }
-                }
+                user.Role = role;
+                user.GroupName = ""; // Сбрасываем группу/ФИО при смене роли
+                await _dbContext.SaveChangesAsync();
             }
         }
 
-        // Метод для отображения меню администратора
-        private async Task ShowAdminMenu(long chatId)
+        // Метод для регистрации нового пользователя с пустыми полями, кроме ChatId
+        private async Task RegisterEmptyUser(long chatId)
         {
-            var adminButtons = new ReplyKeyboardMarkup(new[]
+            var newUser = new UserModel
             {
-                new KeyboardButton("📚 Отправить расписание для студентов"),
-                new KeyboardButton("👨‍🏫 Отправить расписание для преподавателей")
-            })
-            {
-                ResizeKeyboard = true
+                TelegramUserId = chatId,
+                Role = "", // роль еще не выбрана
+                GroupName = "" // пустая группа/ФИО
             };
 
-            await _botClient.SendTextMessageAsync(chatId, "Выберите действие:", replyMarkup: adminButtons);
+            _dbContext.Users.Add(newUser);
+            await _dbContext.SaveChangesAsync();
         }
 
         private bool IsAdmin(long userId)
