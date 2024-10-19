@@ -12,6 +12,7 @@ using System.Collections.Generic;
 using Telegram.Bot.Types.ReplyMarkups;
 using UserModel = JoskiTGBot2024.Models.User;
 using System.Text.RegularExpressions;
+using System.Diagnostics;
 
 namespace JoskiTGBot2024
 {
@@ -141,12 +142,12 @@ namespace JoskiTGBot2024
 
                     case "role_student":
                         await ChangeUserRole(callbackQuery.Message.Chat.Id, "Учащийся");
-                        await _botClient.SendTextMessageAsync(callbackQuery.Message.Chat.Id, "Роль 'Учащийся' установлена. Пожалуйста, введите вашу группу.");
+                        await _botClient.SendTextMessageAsync(callbackQuery.Message.Chat.Id, "Роль 'Учащийся' установлена. Пожалуйста, введите вашу группу. Пример: П-2109");
                         break;
 
                     case "role_teacher":
                         await ChangeUserRole(callbackQuery.Message.Chat.Id, "Преподаватель");
-                        await _botClient.SendTextMessageAsync(callbackQuery.Message.Chat.Id, "Роль 'Преподаватель' установлена. Пожалуйста, введите ваше ФИО.");
+                        await _botClient.SendTextMessageAsync(callbackQuery.Message.Chat.Id, "Роль 'Преподаватель' установлена. Пожалуйста, введите ваше ФИО. Пример: Фамилия И.О.");
                         break;
                     default:
                         await _botClient.AnswerCallbackQueryAsync(callbackQuery.Id, "Каво? выберите действие из меню.");
@@ -246,12 +247,17 @@ namespace JoskiTGBot2024
 
         private async Task ProcessAdminFile(long adminId, string fileId)
         {
+            Stopwatch stopwatch = new Stopwatch();
+            stopwatch.Start();
             var file = await _botClient.GetFileAsync(fileId);
             var fileStream = new MemoryStream();
             await _botClient.DownloadFileAsync(file.FilePath, fileStream);
 
             var schedule = _excelService.ProcessExcelFile(fileStream);
             var scheduleService = new ScheduleService(schedule);
+            stopwatch.Stop();
+            Console.WriteLine(stopwatch.Elapsed.ToString());
+            stopwatch.Restart();
 
             if (fileRole)
             {
@@ -262,6 +268,7 @@ namespace JoskiTGBot2024
                     var scheduleMessage = scheduleService.GetScheduleForGroup(user.GroupName);
                     await _botClient.SendTextMessageAsync(user.TelegramUserId, scheduleMessage, parseMode: Telegram.Bot.Types.Enums.ParseMode.Markdown);
                 }
+
             }
             else
             {
@@ -273,6 +280,8 @@ namespace JoskiTGBot2024
                     await _botClient.SendTextMessageAsync(user.TelegramUserId, scheduleMessage, parseMode: Telegram.Bot.Types.Enums.ParseMode.Markdown);
                 }
             }
+            stopwatch.Stop();
+            Console.WriteLine(stopwatch.Elapsed.ToString());
         }
 
         private Task HandleErrorAsync(ITelegramBotClient botClient, Exception exception, CancellationToken cancellationToken)
