@@ -67,15 +67,6 @@ namespace JoskiTGBot2024.Services
                                         item.Trim();
                                     }
 
-                                    //if (splited_lesson[0].Contains("Физич. культ. и здор. Алешко Н.Г. (600-01)"))
-                                    //{
-                                    //    splited_lesson[0] += "💩💩💩(окошко)";
-                                    //}
-                                    //else if (splited_lesson[1].Contains("Физич. культ. и здор. Алешко Н.Г. (600-01)"))
-                                    //{
-                                    //    splited_lesson[1] += "💩💩💩(окошко)";
-                                    //}
-
                                     if (length == 1)
                                     {
                                         if (splited_lesson[0].Contains("2ч"))

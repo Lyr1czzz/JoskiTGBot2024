@@ -259,14 +259,6 @@ namespace JoskiTGBot2024
 
                 foreach (var user in teachers)
                 {
-                    if (user.GroupName.Contains("Шаповалов А.С."))
-                    {
-                        await _botClient.SendTextMessageAsync(user.TelegramUserId, "Вы возхдухан и мухожук. Ваше расписание: балдеж балдеж балдеж");
-                    }
-                    if (user.GroupName.Contains("Лейко Д.А."))
-                    {
-                        await _botClient.SendTextMessageAsync(user.TelegramUserId, "Персональная рассылка для МС Микроба. свэг.");
-                    }
                     var scheduleMessage = scheduleService.GetScheduleForGroup(user.GroupName);
                     await _botClient.SendTextMessageAsync(user.TelegramUserId, scheduleMessage, parseMode: Telegram.Bot.Types.Enums.ParseMode.Markdown);
                 }
