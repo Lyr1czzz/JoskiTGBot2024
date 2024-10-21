@@ -45,11 +45,13 @@ namespace JoskiTGBot2024
 
         private async Task HandleUpdateAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
         {
-            await semaphore.WaitAsync();
-            try
+            
+            if (update.Message != null)
             {
-                if (update.Message != null)
+                if (!await RedisService.IsStringExist(update.Message.Chat.Id.ToString()))
                 {
+                    await RedisService.SetValue(update.Message.Chat.Id.ToString(), "1", TimeSpan.FromSeconds(10));
+
                     var message = update.Message;
                     var user = _dbContext.Users.FirstOrDefault(u => u.TelegramUserId == message.Chat.Id);
                     var command = message.Text != null ? message.Text : string.Empty;
@@ -120,13 +122,19 @@ namespace JoskiTGBot2024
                         }
                         return;
                     }
-
                 }
-
-
-
-                if (update.CallbackQuery != null)
+                else
                 {
+                    await _botClient.SendTextMessageAsync(update.Message.Chat.Id, "Пожалуйста, не балуйся. Ты в бане на 2 секунд!");
+                }
+            }
+
+            if (update.CallbackQuery != null)
+            {
+                if (!await RedisService.IsStringExist(update.CallbackQuery.Id.ToString()))
+                {
+                    await RedisService.SetValue(update.CallbackQuery.Id.ToString(), "1", TimeSpan.FromSeconds(2));
+
                     var callbackQuery = update.CallbackQuery;
 
                     // Проверка на истечение времени действия callbackQuery
@@ -158,13 +166,11 @@ namespace JoskiTGBot2024
                             break;
                     }
                 }
-               await Task.Delay(2000);
-            }
-            finally
-            {
-                semaphore.Release();
-            }
-            
+                else
+                {
+                    await _botClient.SendTextMessageAsync(update.CallbackQuery.Id, "Пожалуйста, не балуйся. Ты в бане на 2 секунд!");
+                }
+            }   
         }
 
         // Метод для отображения меню для обычного пользователя
