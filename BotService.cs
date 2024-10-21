@@ -22,6 +22,7 @@ namespace JoskiTGBot2024
         private readonly ApplicationDbContext _dbContext;
         private readonly ExcelService _excelService;
         private bool fileRole;
+        private static SemaphoreSlim semaphore = new SemaphoreSlim(1, 1);
 
         public BotService(string token)
         {
@@ -44,116 +45,126 @@ namespace JoskiTGBot2024
 
         private async Task HandleUpdateAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
         {
-            if (update.Message != null)
+            await semaphore.WaitAsync();
+            try
             {
-                var message = update.Message;
-                var user = _dbContext.Users.FirstOrDefault(u => u.TelegramUserId == message.Chat.Id);
-                var command = message.Text != null ? message.Text : string.Empty;
+                if (update.Message != null)
+                {
+                    var message = update.Message;
+                    var user = _dbContext.Users.FirstOrDefault(u => u.TelegramUserId == message.Chat.Id);
+                    var command = message.Text != null ? message.Text : string.Empty;
 
-                if (command == "/start")
-                {
-                    if (user != null && !user.IsAdmin)
+                    if (command == "/start")
                     {
-                        _dbContext.Users.Remove(user);
-                        await _dbContext.SaveChangesAsync();
-                        await RegisterEmptyUser(message.Chat.Id);
-                        await _dbContext.SaveChangesAsync();
+                        if (user != null && !user.IsAdmin)
+                        {
+                            _dbContext.Users.Remove(user);
+                            await _dbContext.SaveChangesAsync();
+                            await RegisterEmptyUser(message.Chat.Id, message.Chat.Username);
+                            await _dbContext.SaveChangesAsync();
+                        }
+                        else if (user == null)
+                        {
+                            await RegisterEmptyUser(message.Chat.Id, message.Chat.Username);
+                            await _dbContext.SaveChangesAsync();
+                        }
+
+                        if (IsAdmin(message.From.Id))
+                        {
+                            await ShowAdminMenu(message.Chat.Id);
+                        }
+                        else
+                        {
+                            await ShowUserMenu(message.Chat.Id);
+                        }
                     }
-                    else if (user == null)
+                    else if (command == "/help")
                     {
-                        await RegisterEmptyUser(message.Chat.Id);
-                        await _dbContext.SaveChangesAsync();
+                        await _botClient.SendTextMessageAsync(message.Chat.Id, "ЭЩКЕРЕ");
+
+                    }
+                    else if (command == "📚 для студентов")
+                    {
+                        fileRole = false;
+                        await _botClient.SendTextMessageAsync(message.Chat.Id, "Пожалуйста, отправьте файл Excel с расписанием для студентов.");
+                    }
+                    else if (command == "👨‍🏫 для преподавателей")
+                    {
+                        fileRole = true;
+                        await _botClient.SendTextMessageAsync(message.Chat.Id, "Пожалуйста, отправьте файл Excel с расписанием для преподавателей.");
+                    }
+                    else if (message.Document != null && user != null)
+                    {
+                        if (user?.IsAdmin == true)
+                        {
+                            await ProcessAdminFile(user.TelegramUserId, message.Document.FileId);
+                        }
+                    }
+                    else if (user != null)
+                    {
+                        if (user.Role == "Учащийся" && Regex.IsMatch(command, @"^[А-ЯЁ]{1,2}-\d{4}$"))
+                        {
+                            await ChangeUserGroupOrFIO(user.TelegramUserId, command);
+                            await ShowUserMenu(message.Chat.Id); // Возвращаемся к пользовательскому меню
+                            await _botClient.SendTextMessageAsync(message.Chat.Id, "Изменения приняты.");
+                        }
+                        else if (user.Role == "Преподаватель" && Regex.IsMatch(command, @"^[А-ЯЁ][а-яё]+ [А-ЯЁ]\.[А-ЯЁ]\.$"))
+                        {
+                            await ChangeUserGroupOrFIO(user.TelegramUserId, command);
+                            await ShowUserMenu(message.Chat.Id); // Возвращаемся к пользовательскому меню
+                            await _botClient.SendTextMessageAsync(message.Chat.Id, "Изменения приняты.");
+                        }
+                        else
+                        {
+                            await _botClient.SendTextMessageAsync(message.Chat.Id, "Вы написали какую-то бяку. Попробуйте еще раз");
+                        }
+                        return;
                     }
 
-                    if (IsAdmin(message.From.Id))
-                    {
-                        await ShowAdminMenu(message.Chat.Id);
-                    }
-                    else
-                    {
-                        await ShowUserMenu(message.Chat.Id);
-                    }
                 }
-                else if (command == "/help")
-                {
-                    await _botClient.SendTextMessageAsync(message.Chat.Id, "ЭЩКЕРЕ");
 
-                }
-                else if (command == "📚 для студентов")
+
+
+                if (update.CallbackQuery != null)
                 {
-                    fileRole = false;
-                    await _botClient.SendTextMessageAsync(message.Chat.Id, "Пожалуйста, отправьте файл Excel с расписанием для студентов.");
-                }
-                else if (command == "👨‍🏫 для преподавателей")
-                {
-                    fileRole = true;
-                    await _botClient.SendTextMessageAsync(message.Chat.Id, "Пожалуйста, отправьте файл Excel с расписанием для преподавателей.");
-                }
-                else if (message.Document != null && user != null)
-                {
-                    if (user?.IsAdmin == true)
+                    var callbackQuery = update.CallbackQuery;
+
+                    // Проверка на истечение времени действия callbackQuery
+                    if (callbackQuery.Message == null || callbackQuery.Data == null)
                     {
-                        await ProcessAdminFile(user.TelegramUserId, message.Document.FileId);
+                        await _botClient.AnswerCallbackQueryAsync(callbackQuery.Id, "Действие не может быть выполнено, запрос устарел.", showAlert: true);
+                        return;
+                    }
+
+                    var user = _dbContext.Users.FirstOrDefault(u => u.TelegramUserId == callbackQuery.Message.Chat.Id);
+
+                    switch (callbackQuery.Data)
+                    {
+                        case "change_role":
+                            await AskForRole(callbackQuery.Message.Chat.Id);
+                            break;
+
+                        case "role_student":
+                            await ChangeUserRole(callbackQuery.Message.Chat.Id, "Учащийся");
+                            await _botClient.SendTextMessageAsync(callbackQuery.Message.Chat.Id, "Роль 'Учащийся' установлена. Пожалуйста, введите вашу группу. Пример: П-2109");
+                            break;
+
+                        case "role_teacher":
+                            await ChangeUserRole(callbackQuery.Message.Chat.Id, "Преподаватель");
+                            await _botClient.SendTextMessageAsync(callbackQuery.Message.Chat.Id, "Роль 'Преподаватель' установлена. Пожалуйста, введите ваше ФИО. Пример: Фамилия И.О.");
+                            break;
+                        default:
+                            await _botClient.AnswerCallbackQueryAsync(callbackQuery.Id, "Каво? выберите действие из меню.");
+                            break;
                     }
                 }
-                else if (user != null)
-                {
-                    if (user.Role == "Учащийся" && Regex.IsMatch(command, @"^[А-ЯЁ]{1,2}-\d{4}$"))
-                    {
-                        await ChangeUserGroupOrFIO(user.TelegramUserId, command);
-                        await ShowUserMenu(message.Chat.Id); // Возвращаемся к пользовательскому меню
-                        await _botClient.SendTextMessageAsync(message.Chat.Id, "Изменения приняты.");
-                    }
-                    else if (user.Role == "Преподаватель" && Regex.IsMatch(command, @"^[А-ЯЁ][а-яё]+ [А-ЯЁ]\.[А-ЯЁ]\.$"))
-                    {
-                        await ChangeUserGroupOrFIO(user.TelegramUserId, command);
-                        await ShowUserMenu(message.Chat.Id); // Возвращаемся к пользовательскому меню
-                        await _botClient.SendTextMessageAsync(message.Chat.Id, "Изменения приняты.");
-                    }
-                    else
-                    {
-                        await _botClient.SendTextMessageAsync(message.Chat.Id, "Вы написали какую-то бяку. Попробуйте еще раз");
-                    }
-                    return;
-                }
-               
+               await Task.Delay(2000);
             }
-
+            finally
+            {
+                semaphore.Release();
+            }
             
-
-            if (update.CallbackQuery != null)
-            {
-                var callbackQuery = update.CallbackQuery;
-
-                // Проверка на истечение времени действия callbackQuery
-                if (callbackQuery.Message == null || callbackQuery.Data == null)
-                {
-                    await _botClient.AnswerCallbackQueryAsync(callbackQuery.Id, "Действие не может быть выполнено, запрос устарел.", showAlert: true);
-                    return;
-                }
-
-                var user = _dbContext.Users.FirstOrDefault(u => u.TelegramUserId == callbackQuery.Message.Chat.Id);
-
-                switch (callbackQuery.Data)
-                {
-                    case "change_role":
-                        await AskForRole(callbackQuery.Message.Chat.Id);
-                        break;
-
-                    case "role_student":
-                        await ChangeUserRole(callbackQuery.Message.Chat.Id, "Учащийся");
-                        await _botClient.SendTextMessageAsync(callbackQuery.Message.Chat.Id, "Роль 'Учащийся' установлена. Пожалуйста, введите вашу группу. Пример: П-2109");
-                        break;
-
-                    case "role_teacher":
-                        await ChangeUserRole(callbackQuery.Message.Chat.Id, "Преподаватель");
-                        await _botClient.SendTextMessageAsync(callbackQuery.Message.Chat.Id, "Роль 'Преподаватель' установлена. Пожалуйста, введите ваше ФИО. Пример: Фамилия И.О.");
-                        break;
-                    default:
-                        await _botClient.AnswerCallbackQueryAsync(callbackQuery.Id, "Каво? выберите действие из меню.");
-                        break;
-                }
-            }
         }
 
         // Метод для отображения меню для обычного пользователя
@@ -226,12 +237,13 @@ namespace JoskiTGBot2024
         }
 
         // Метод для регистрации нового пользователя с пустыми полями, кроме ChatId
-        private async Task RegisterEmptyUser(long chatId)
+        private async Task RegisterEmptyUser(long chatId, string name)
         {
             var newUser = new UserModel
             {
                 TelegramUserId = chatId,
                 Role = "", // роль еще не выбрана
+                Name = name,
                 GroupName = "" // пустая группа/ФИО
             };
 
@@ -277,7 +289,31 @@ namespace JoskiTGBot2024
                 foreach (var user in students)
                 {
                     var scheduleMessage = scheduleService.GetScheduleForGroup(user.GroupName);
-                    await _botClient.SendTextMessageAsync(user.TelegramUserId, scheduleMessage, parseMode: Telegram.Bot.Types.Enums.ParseMode.Markdown);
+                    var chatId = user.TelegramUserId;
+                    try
+                    {
+                        await _botClient.SendTextMessageAsync(user.TelegramUserId, scheduleMessage, parseMode: Telegram.Bot.Types.Enums.ParseMode.Markdown);
+                    }
+                    catch (Telegram.Bot.Exceptions.ApiRequestException ex)
+                    {
+                        if (ex.Message.Contains("Forbidden: bot was blocked by the user"))
+                        {
+                            Console.WriteLine($"Пользователь {chatId} заблокировал бота. Удаляем пользователя из базы данных.");
+
+                            // Удаление пользователя из базы данных
+                            var delet_user = _dbContext.Users.FirstOrDefault(u => u.TelegramUserId == chatId);
+                            if (user != null)
+                            {
+                                _dbContext.Users.Remove(user);
+                                await _dbContext.SaveChangesAsync();
+                            }
+                        }
+                        else
+                        {
+                            // Обработка других ошибок
+                            Console.WriteLine($"Произошла ошибка: {ex.Message}");
+                        }
+                    }
                 }
             }
             stopwatch.Stop();

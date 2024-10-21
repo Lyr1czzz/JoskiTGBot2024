@@ -26,7 +26,6 @@ namespace JoskiTGBot2024.Services
                 formattedSchedule.AppendLine();
                 foreach (var lesson in lessons)
                 {
-                    
                     formattedSchedule.AppendLine(lesson);       
                     formattedSchedule.AppendLine();
                 }
