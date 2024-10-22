@@ -23,14 +23,15 @@ namespace JoskiTGBot2024.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("GroupName")
-                        .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.Property<bool>("IsAdmin")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("Name")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Role")
-                        .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.Property<long>("TelegramUserId")

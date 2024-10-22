@@ -50,7 +50,7 @@ namespace JoskiTGBot2024
             {
                 if (!await RedisService.IsStringExist(update.Message.Chat.Id.ToString()))
                 {
-                    await RedisService.SetValue(update.Message.Chat.Id.ToString(), "1", TimeSpan.FromSeconds(10));
+                    await RedisService.SetValue(update.Message.Chat.Id.ToString(), "1", TimeSpan.FromSeconds(5));
 
                     var message = update.Message;
                     var user = _dbContext.Users.FirstOrDefault(u => u.TelegramUserId == message.Chat.Id);
@@ -125,7 +125,7 @@ namespace JoskiTGBot2024
                 }
                 else
                 {
-                    await _botClient.SendTextMessageAsync(update.Message.Chat.Id, "Пожалуйста, не балуйся. Ты в бане на 2 секунд!");
+                    await _botClient.SendTextMessageAsync(update.Message.Chat.Id, "Пожалуйста, не балуйся. Ты в бане на 5 секунд!");
                 }
             }
 
@@ -133,7 +133,7 @@ namespace JoskiTGBot2024
             {
                 if (!await RedisService.IsStringExist(update.CallbackQuery.Id.ToString()))
                 {
-                    await RedisService.SetValue(update.CallbackQuery.Id.ToString(), "1", TimeSpan.FromSeconds(2));
+                    await RedisService.SetValue(update.CallbackQuery.Id.ToString(), "1", TimeSpan.FromSeconds(5));
 
                     var callbackQuery = update.CallbackQuery;
 
@@ -168,7 +168,7 @@ namespace JoskiTGBot2024
                 }
                 else
                 {
-                    await _botClient.SendTextMessageAsync(update.CallbackQuery.Id, "Пожалуйста, не балуйся. Ты в бане на 2 секунд!");
+                    await _botClient.SendTextMessageAsync(update.CallbackQuery.Id, "Пожалуйста, не балуйся. Ты в бане на 5 секунд!");
                 }
             }   
         }
@@ -328,7 +328,7 @@ namespace JoskiTGBot2024
 
         private Task HandleErrorAsync(ITelegramBotClient botClient, Exception exception, CancellationToken cancellationToken)
         {
-            Console.WriteLine($"Ошибка: {exception.Message}");
+            Console.WriteLine($"Ошибка: {exception.Message + '\n' + exception.InnerException}");
             return Task.CompletedTask;
         }
     }
