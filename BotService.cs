@@ -21,7 +21,7 @@ namespace JoskiTGBot2024
         private readonly TelegramBotClient _botClient;
         private readonly ApplicationDbContext _dbContext;
         private readonly ExcelService _excelService;
-        private bool fileRole;
+        private bool fileRole = true;
         private static SemaphoreSlim semaphore = new SemaphoreSlim(1, 1);
 
         public BotService(string token)
