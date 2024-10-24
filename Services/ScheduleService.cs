@@ -12,6 +12,32 @@ namespace JoskiTGBot2024.Services
             _schedule = schedule;
         }
 
+        public string GetScheduleForChanged(string groupName)
+        {
+            var scheduleForGroup = _schedule.FirstOrDefault(s => s.ContainsKey(groupName));
+
+            if (scheduleForGroup != null)
+            {
+                var lessons = scheduleForGroup[groupName];
+                var formattedSchedule = new System.Text.StringBuilder();
+
+                formattedSchedule.AppendLine($"📅 *Расписание для {groupName}:*");
+
+                formattedSchedule.AppendLine();
+                foreach (var lesson in lessons)
+                {
+                    formattedSchedule.AppendLine(lesson);
+                    formattedSchedule.AppendLine();
+                }
+
+                return formattedSchedule.ToString();
+            }
+            else
+            {
+                return $"Расписание для группы {groupName} не найдено.";
+            }
+        }
+
         public string GetScheduleForGroup(string groupName)
         {
             var scheduleForGroup = _schedule.FirstOrDefault(s => s.ContainsKey(groupName));
@@ -26,7 +52,7 @@ namespace JoskiTGBot2024.Services
                 formattedSchedule.AppendLine();
                 foreach (var lesson in lessons)
                 {
-                    formattedSchedule.AppendLine(lesson);       
+                    formattedSchedule.AppendLine(lesson);
                     formattedSchedule.AppendLine();
                 }
 
